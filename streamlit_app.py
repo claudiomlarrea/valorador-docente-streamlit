@@ -1,102 +1,161 @@
 
 import streamlit as st
 import pandas as pd
-import fitz
-import re
+import fitz  # PyMuPDF
 import docx
+import base64
 from io import BytesIO
 
 st.set_page_config(page_title="Valorador Docente", layout="centered")
-st.markdown("## 🎓 Universidad Católica de Cuyo")
-st.markdown("### Secretaría de Investigación")
-st.markdown("#### Valorador Docente - Resolución 897")
 
-nombre_docente = st.text_input("Nombre completo del docente:")
-archivo_cv = st.file_uploader("📄 Cargar CV en formato PDF o Word", type=["pdf", "docx"])
+st.markdown("<h1 style='text-align: center; color: navy;'>Universidad Católica de Cuyo</h1>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: navy;'>Secretaría de Investigación</h2>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align: center; color: navy;'>Valorador Docente</h3>", unsafe_allow_html=True)
 
-codigos_items = {
-    "título de grado": 30,
-    "curso de postgrado": 75,
-    "especialización": 75,
-    "maestría": 150,
-    "doctorado": 250,
-    "profesor titular": 200,
-    "profesor asociado": 160,
-    "profesor adjunto": 120,
-    "jtp": 80,
-    "ayudante de primera": 40,
-    "tribunal de concursos": 60,
-    "docencia en postgrado acreditado": 100,
-    "docencia en postgrado no acreditado": 50,
-    "tribunal de tesis": 60,
-    "dirección de programa": 200,
-    "co-dirección de programa": 150,
-    "dirección de proyecto": 150,
-    "co-dirección de proyecto": 100,
-    "integrante de proyecto": 60,
-    "auxiliar o becario o adscripto": 30,
-    "libro": 120,
-    "capítulo de libro": 60,
-    "patente": 60,
-    "registro de propiedad intelectual": 60,
-    "publicación con referato": 180,
-    "publicación sin referato": 50,
+# Ítems y puntajes actualizados según Resolución 897
+ITEMS = {
+    "Formación Académica": {
+        "Títulos de Grado": 30,
+        "Cursos de Postgrado": 75,
+        "Especializaciones": 75,
+        "Maestrías": 150,
+        "Doctorados": 250,
+        "_max": 580
+    },
+    "Docencia en Instituciones Universitarias": {
+        "Profesor Titular": 200,
+        "Profesor Asociado": 160,
+        "Profesor Adjunto": 120,
+        "Jefe de Trabajos Prácticos": 80,
+        "Ayudante de primera categoría": 40,
+        "Integrante de Tribunal de concursos docentes": 60,
+        "Docencia en Postgrados acreditados": 100,
+        "Docencia en Postgrados no acreditados": 50,
+        "Integrante de Tribunal de Tesis de Postgrado": 60,
+        "_max": 870
+    },
+    "Investigación Científica y Tecnológica": {
+        "Dirección de Programa de Investigación": 200,
+        "Co-dirección de Programa o Director de proyecto": 150,
+        "Co-dirección de Proyecto": 100,
+        "Integrante de proyecto con un año como mínimo": 60,
+        "Auxiliar o becario o adscripto": 30,
+        "_max": 540
+    },
+    "Producción Académica": {
+        "Libros": 120,
+        "Capítulo de libro": 60,
+        "Patente o registro de propiedad intelectual": 60,
+        "Publicación con referato": 180,
+        "Publicación sin referato en medios académicos-científicos": 50,
+        "_max": 470
+    },
+    "Actividad Científica": {
+        "Premios, Becas y Distinciones": 60,
+        "Conferencista por invitación": 50,
+        "Expositor o panelista": 40,
+        "Organizador o coordinador": 30,
+        "Asistente": 20,
+        "Desarrollo científico-tecnológico con evaluación externa": 200,
+        "Desarrollo científico-tecnológico sin evaluación": 50,
+        "Miembro de Sociedades Científicas": 100,
+        "Miembro de Comisión Evaluadora de Investigaciones": 100,
+        "_max": 650
+    },
+    "Formación de Recursos Humanos": {
+        "Dirección de tesis de postgrado": 150,
+        "Co-dirección de tesis postgrado": 100,
+        "Dirección de investigadores": 150,
+        "Co-dirección de investigadores": 100,
+        "Dirección de becarios o pasantes": 60,
+        "Dirección de auxiliares de docencia": 30,
+        "Dirección de tesis de grado": 30,
+        "Co-dirección de tesis de grado": 20,
+        "_max": 640
+    },
+    "Gestión Universitaria": {
+        "Rector": 100,
+        "Vicerrector o Directorio": 80,
+        "Decano": 80,
+        "Vicedecano": 60,
+        "Secretario de Universidad": 60,
+        "Secretario de Facultad": 40,
+        "Director de centro/instituto/escuela": 35,
+        "Co-director": 20,
+        "Consejero de Consejo Superior": 15,
+        "Consejero de Facultad o Directivo": 10,
+        "Responsable de programa institucional": 35,
+        "Participante de programa institucional": 10,
+        "Miembro de comisiones asesoras o consejero departamental": 10,
+        "Otros antecedentes de interés": 10,
+        "_max": 565
+    }
 }
 
-def extraer_items_desde_archivo(archivo):
-    texto = ""
-    if archivo.name.endswith(".pdf"):
-        with fitz.open(stream=archivo.read(), filetype="pdf") as doc:
-            for page in doc:
-                texto += page.get_text()
-    elif archivo.name.endswith(".docx"):
-        doc = docx.Document(archivo)
-        for para in doc.paragraphs:
-            texto += para.text + " "
-    texto = texto.lower()
-    encontrados = {}
-    for clave, puntaje in codigos_items.items():
-        if re.search(rf"\b{clave}\b", texto):
-            encontrados[clave] = puntaje
-    return encontrados
+def leer_texto_cv(uploaded_file):
+    if uploaded_file.name.endswith(".pdf"):
+        doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
+        return " ".join([page.get_text() for page in doc])
+    elif uploaded_file.name.endswith(".docx"):
+        doc = docx.Document(uploaded_file)
+        return " ".join([p.text for p in doc.paragraphs])
+    return ""
 
-def determinar_categoria(total):
-    if total >= 1500:
-        return "INVESTIGADOR SUPERIOR (I)"
-    elif total >= 1000:
-        return "INVESTIGADOR PRINCIPAL (II)"
-    elif total >= 600:
-        return "INVESTIGADOR INDEPENDIENTE (III)"
-    elif total >= 300:
-        return "INVESTIGADOR ADJUNTO (IV)"
-    elif total >= 1:
-        return "INVESTIGADOR ASISTENTE (V)"
-    else:
-        return "BECARIO DE INICIACIÓN (VI)"
+def analizar_cv(texto):
+    resultados = []
+    total_general = 0
+    for area, items in ITEMS.items():
+        subtotal = 0
+        encontrados = []
+        for item, puntaje in items.items():
+            if item.startswith("_"):
+                continue
+            if item.lower() in texto.lower():
+                subtotal += puntaje
+                encontrados.append((item, puntaje))
+        subtotal = min(subtotal, items["_max"])
+        total_general += subtotal
+        resultados.append((area, subtotal, encontrados))
+    return resultados, total_general
 
-if archivo_cv and nombre_docente:
-    st.success("✔ Archivo cargado correctamente.")
-    resultados = extraer_items_desde_archivo(archivo_cv)
-    total = sum(resultados.values())
-    categoria = determinar_categoria(total)
-
-    st.markdown("### 🧾 Resultados del análisis")
-    df_resultados = pd.DataFrame(resultados.items(), columns=["Ítem detectado", "Puntaje asignado"])
-    st.dataframe(df_resultados, use_container_width=True)
-    st.markdown(f"**Total acumulado:** {total} puntos")
-    st.markdown(f"**Categoría asignada:** 🏅 {categoria}")
-
+def generar_excel(resultado, total):
     output = BytesIO()
-    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        df_resultados.to_excel(writer, sheet_name="Puntajes", index=False)
-        resumen = pd.DataFrame({
-            "Docente": [nombre_docente],
-            "Puntaje total": [total],
-            "Categoría": [categoria]
-        })
-        resumen.to_excel(writer, sheet_name="Resumen", index=False)
-    st.download_button("📥 Descargar informe en Excel", data=output.getvalue(),
-                       file_name=f"Informe_{nombre_docente.replace(' ', '_')}.xlsx",
-                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-else:
-    st.info("Por favor, complete el nombre del docente y cargue un archivo PDF o Word para comenzar.")
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        rows = []
+        for area, subtotal, detalles in resultado:
+            for item, pts in detalles:
+                rows.append([area, item, pts])
+        df = pd.DataFrame(rows, columns=["Área", "Ítem", "Puntaje"])
+        df.loc[len(df.index)] = ["TOTAL", "", total]
+        df.to_excel(writer, index=False, sheet_name="Valoración")
+    return output.getvalue()
+
+uploaded = st.file_uploader("Subí el CV en PDF o Word", type=["pdf", "docx"])
+if uploaded:
+    texto = leer_texto_cv(uploaded)
+    resultado, total = analizar_cv(texto)
+    for area, subtotal, detalles in resultado:
+        st.subheader(f"{area} – Total: {subtotal} puntos")
+        for item, pts in detalles:
+            st.markdown(f"- {item}: {pts} puntos")
+    st.success(f"Total general: {total} puntos")
+    
+    # Categoría según total
+    if total >= 1500:
+        categoria = "Investigador Superior (I)"
+    elif total >= 1000:
+        categoria = "Investigador Principal (II)"
+    elif total >= 600:
+        categoria = "Investigador Independiente (III)"
+    elif total >= 300:
+        categoria = "Investigador Adjunto (IV)"
+    elif total >= 1:
+        categoria = "Investigador Asistente (V)"
+    else:
+        categoria = "Becario de Iniciación (VI)"
+    st.info(f"Categoría asignada: **{categoria}**")
+
+    excel = generar_excel(resultado, total)
+    b64 = base64.b64encode(excel).decode()
+    href = f'<a href="data:application/octet-stream;base64,{b64}" download="valoracion_docente.xlsx">📥 Descargar informe en Excel</a>'
+    st.markdown(href, unsafe_allow_html=True)
