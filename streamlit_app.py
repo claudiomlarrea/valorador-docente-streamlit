@@ -1,32 +1,44 @@
 import streamlit as st
-from extractor import extraer_items_desde_cv
-from generator import generar_excel
 import pandas as pd
+from extractor import extraer_items_desde_pdf
+from generator import generar_excel
 
-st.set_page_config(page_title="Valorador Docente", layout="centered")
+st.set_page_config(page_title="🧠 Valorador Docente - Resolución 897", layout="centered")
+
 st.title("🧠 Valorador Docente - Resolución 897")
-st.markdown("**Subí tu CV en PDF o DOCX para evaluar automáticamente tus antecedentes.**")
+st.write("Subí tu CV generado por SIGEVA-CONICET (PDF) para analizarlo automáticamente.")
 
-uploaded_file = st.file_uploader("📄 Elegí tu archivo", type=["pdf", "docx"])
+uploaded_file = st.file_uploader("📄 Subí tu CV aquí", type=["pdf", "docx"])
 
 if uploaded_file:
-    with st.spinner("Analizando el CV..."):
-        items_detectados = extraer_items_desde_cv(uploaded_file)
-        total = sum(valor for _, valor in items_detectados)
-        df_resultado = pd.DataFrame(items_detectados, columns=["Ítem detectado", "Puntaje asignado"])
-        categoria = (
-            "BECARIO DE INICIACIÓN (VI)" if total < 100 else
-            "INVESTIGADOR EN FORMACIÓN (V)" if total < 250 else
-            "INVESTIGADOR ASISTENTE (IV)" if total < 500 else
-            "INVESTIGADOR ADJUNTO (III)" if total < 800 else
-            "INVESTIGADOR PRINCIPAL (II)" if total < 1100 else
-            "INVESTIGADOR SUPERIOR (I)"
-        )
-        st.subheader("📊 Resultados del análisis")
-        st.dataframe(df_resultado, use_container_width=True)
-        st.markdown(f"**Total acumulado:** {total} puntos")
-        st.markdown(f"**Categoría asignada:** 🥇 {categoria}")
+    st.success("✅ Archivo cargado correctamente. Analizando...")
+    items_detectados = extraer_items_desde_pdf(uploaded_file)
 
-        if st.button("📥 Descargar informe en Excel"):
-            excel_file = generar_excel(df_resultado, total, categoria)
-            st.download_button("Descargar Excel", data=excel_file, file_name="informe_valoracion.xlsx")
+    if not items_detectados:
+        st.warning("⚠️ No se detectaron ítems reconocibles. Revisá el formato del archivo.")
+    else:
+        df = pd.DataFrame(items_detectados)
+        total = df["Puntaje asignado"].sum()
+
+        # Asignar categoría según total
+        if total >= 1100:
+            categoria = "🥇 INVESTIGADOR SUPERIOR (I)"
+        elif total >= 900:
+            categoria = "🥈 INVESTIGADOR PRINCIPAL (II)"
+        elif total >= 700:
+            categoria = "🥉 INVESTIGADOR INDEPENDIENTE (III)"
+        elif total >= 500:
+            categoria = "🏅 INVESTIGADOR ASISTENTE (IV)"
+        elif total >= 300:
+            categoria = "🏅 BECARIO POSTDOCTORAL (V)"
+        else:
+            categoria = "🎓 BECARIO DE INICIACIÓN (VI)"
+
+        st.subheader("📊 Resultados del análisis")
+        st.dataframe(df, use_container_width=True)
+        st.markdown(f"**Total acumulado:** {total} puntos")
+        st.markdown(f"**Categoría asignada:** {categoria}")
+
+        # Descargar informe en Excel
+        excel_file = generar_excel(df, total, categoria)
+        st.download_button("📥 Descargar informe en Excel", data=excel_file, file_name="informe_valorador.xlsx")

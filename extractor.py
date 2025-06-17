@@ -1,49 +1,49 @@
-import fitz  # PyMuPDF
-import docx
+from PyPDF2 import PdfReader
 
-PATRONES = {
-    "Doctorado": 250,
-    "Maestría": 150,
-    "Especialización": 75,
-    "Profesor Titular": 200,
-    "Profesor Asociado": 160,
-    "Profesor Adjunto": 120,
-    "JTP": 80,
-    "Ayudante": 40,
-    "Libro": 120,
-    "Capítulo de libro": 60,
-    "Artículo con referato": 180,
-    "Artículo sin referato": 50,
-    "Investigador": 150,
-    "Premio": 60,
-    "Proyecto I+D": 100,
-    "Evaluador de tesis": 60,
-    "Evaluador de publicaciones": 40,
-    "Dirección de becario": 60,
-    "Dirección de tesista": 150,
-    "Dirección de investigador": 150,
-    "Gestión universitaria": 100
+ITEMS = {
+    "doctorado": ("Doctorado", 250),
+    "maestría": ("Maestría", 150),
+    "especialización": ("Especialización", 75),
+    "título de grado": ("Título de Grado", 30),
+    "profesor titular": ("Profesor Titular", 200),
+    "profesor asociado": ("Profesor Asociado", 160),
+    "profesor adjunto": ("Profesor Adjunto", 120),
+    "jtp": ("Jefe de Trabajos Prácticos", 80),
+    "ayudante": ("Ayudante", 40),
+    "tribunal de tesis": ("Evaluador de tesis", 60),
+    "investigador": ("Investigador", 150),
+    "proyecto de investigación": ("Proyecto de investigación", 100),
+    "libro": ("Libro", 120),
+    "capítulo": ("Capítulo de libro", 60),
+    "artículo con referato": ("Publicación con referato", 180),
+    "premio": ("Premio", 60),
+    "beca": ("Beca", 30),
+    "extensión": ("Actividad de extensión", 30),
+    "evaluador": ("Evaluador", 60)
 }
 
-def extraer_texto_pdf(file):
-    with fitz.open(stream=file.read(), filetype="pdf") as doc:
-        return "\n".join([page.get_text() for page in doc])
+MAX_POR_CATEGORIA = {
+    "Formación Académica": 580,
+    "Docencia": 870,
+    "Investigación": 540,
+    "Producción Académica": 470,
+    "Actividad Científica": 650,
+    "Formación de Recursos Humanos": 640,
+    "Gestión Universitaria": 565
+}
 
-def extraer_texto_docx(file):
-    doc = docx.Document(file)
-    return "\n".join([para.text for para in doc.paragraphs])
-
-def extraer_items_desde_cv(file):
-    filename = file.name.lower()
+def extraer_items_desde_pdf(file):
+    reader = PdfReader(file)
     texto = ""
-    if filename.endswith(".pdf"):
-        texto = extraer_texto_pdf(file)
-    elif filename.endswith(".docx"):
-        texto = extraer_texto_docx(file)
+    for page in reader.pages:
+        texto += page.extract_text().lower() + "
+"
 
-    texto = texto.lower()
     resultados = []
-    for patron, puntaje in PATRONES.items():
-        if patron.lower() in texto:
-            resultados.append((patron, puntaje))
+    usados = set()
+    for palabra_clave, (descripcion, puntaje) in ITEMS.items():
+        if palabra_clave in texto and descripcion not in usados:
+            resultados.append({"Ítem detectado": descripcion, "Puntaje asignado": puntaje})
+            usados.add(descripcion)
+
     return resultados
