@@ -1,5 +1,5 @@
-streamlit
-pandas
-python-docx
-PyMuPDF
-xlsxwriter
+
+streamlit>=1.33.0
+pandas>=2.2.2
+PyMuPDF>=1.23.5
+xlsxwriter>=3.1.9
