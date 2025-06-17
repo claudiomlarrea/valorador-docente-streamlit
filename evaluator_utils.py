@@ -1,0 +1,1 @@
+# Funciones para cálculo de puntajes y validación de máximos
