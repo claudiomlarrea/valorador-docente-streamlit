@@ -3,4 +3,3 @@ PyMuPDF
 pandas
 python-docx
 openpyxl
-
